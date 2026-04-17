@@ -8,6 +8,7 @@ const ProfileScreen = () => {
   const { currentUser, updateProfile, logoutUser } = useAuth();
 
   const [name, setName] = useState(currentUser?.name || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
   const [address, setAddress] = useState(currentUser?.address || '');
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || '');
   const [description, setDescription] = useState(currentUser?.description || '');
@@ -46,7 +47,11 @@ const ProfileScreen = () => {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email</Text>
-            <TextInput style={[styles.input, {backgroundColor: '#eee'}]} value={currentUser?.email} editable={false} />
+            <TextInput
+              style={[styles.input, { backgroundColor: '#e9ecef', color: '#6c757d' }]} 
+              value={email}
+              editable={false}
+            />
           </View>
 
           <View style={styles.inputGroup}>

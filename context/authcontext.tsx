@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { apiClient } from '../services/api';
 const AuthContext = createContext<any>(null);
 
 const db = SQLite.openDatabaseSync('my_app.db');
@@ -46,39 +46,48 @@ export const AuthProvider = ({ children }: any) => {
     initDB();
   }, []);
 
-  const registerUser = async (user: { name: string; email: string; pass: string }) => {
-    try {
-      const statement = await db.prepareAsync(
-        'INSERT INTO users (name, email, password) VALUES ($name, $email, $password)'
-      );
-      await statement.executeAsync({
-        $name: user.name,
-        $email: user.email,
-        $password: user.pass
-      });
-      return true;
-    } catch (error) {
-      console.error('Lỗi khi đăng ký (Có thể email đã tồn tại):', error);
+  const registerUser = async (user: { name: string; email: string; pass: string, description: string }) => {
+    try { 
+      const payload = {
+        name: user.name, 
+        email: user.email,
+        password: user.pass,
+        description: ""
+      };
+
+      const response = await apiClient.post('/register', payload);
+      if (response.status === 200 || response.status === 201) {
+        return true; 
+      }
       return false;
+    } catch (error: any) {
+      console.error('Lỗi API Đăng ký:', JSON.stringify(error.response?.data, null, 2));
+      return false; 
     }
   };
 
   const loginUser = async (email: string, pass: string) => {
-    try {
-      const foundUser = await db.getFirstAsync(
-        'SELECT * FROM users WHERE email = ? AND password = ?',
-        [email, pass]
-      );
+     try { 
+        const response = await apiClient.post('/login', null, {
+          params: {
+            email:email,
+            password: pass
+          }
+        });
 
-      if (foundUser) {
-        setCurrentUser(foundUser);
-        await AsyncStorage.setItem('currentUser', JSON.stringify(foundUser));
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Lỗi khi đăng nhập:', error);
-      return false;
+        if(response.status === 200 && response.data) {
+            const userData = response.data;
+
+            userData.email = email;
+            setCurrentUser(userData);
+
+            await AsyncStorage.setItem('currentUser', JSON.stringify(userData));
+            return true;
+        } 
+        return false;
+    } catch (error: any) {
+        console.error('Lỗi API đăng nhập:', JSON.stringify(error.response?.data || error.message, null, 2));
+        return false;
     }
   };
 

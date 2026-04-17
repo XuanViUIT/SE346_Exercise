@@ -2,26 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useAuth } from '../../context/authcontext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiClient } from '@/services/api';
 interface Post {
   id: string;
-  author: string;
   title: string;
   description: string;
-  date: string;
+  creator_name: string;
+  creator_email: string;
+  created_at: string;
 }
 
-const MOCK_POSTS: Post[] = [
-    { id: '1', author: 'Alice', title: 'Kết của Jujutsu Kaisen', description: 'Có ai thấy buồn với cái kết mới đây của Jujutsu Kaisen không', date: '2023-10-25' },
-    { id: '2', author: 'Bob', title: 'Tìm người đi chơi Halloween', description: 'Cần tìm người đi chơi chung tối ngày Halloween', date: '2023-10-27' },
-    { id: '3', author: 'Charlie', title: 'Tìm việc liên quan tới UI Designer', description: 'Tôi đã có 5 năm kinh nghiệm làm UI Designer và hiện tại đang muốn tìm kiếm bến đỗ mới', date: '2023-10-26' },
-    { id: '4', author: "Mark", title: 'Thông báo tuyển nhân sự cho Meta', description: 'Meta đang cần tuyển thêm 20 lập trình viên ở các vị trí Frontend, Backend và Fullstack. Nếu cần liên hệ về thông tin tuyển dụng hãy liên hệ tôi', date:'2023-10-31'},
-    { id: '5', author: 'Laura', title: 'Tìm người đi chơi ngày giao thừa', description: 'Mình cần tìm bạn nữ đi chơi đêm giao thừa với mình ở TPHCM', date:'2023-12-28'}
-];
 
 const HomeScreen = () => {
   const { currentUser, db } = useAuth();
 
-  const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   
@@ -29,18 +24,21 @@ const HomeScreen = () => {
   const [activeCommentPost, setActiveCommentPost] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
-  useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        const storedPosts = await AsyncStorage.getItem('saved_posts');
-        if (storedPosts) {
-          setPosts(JSON.parse(storedPosts));
-        }
-      } catch (error) {
-        console.log('Lỗi tải bài viết:', error);
+  const fetchPosts = async () => {
+    try {
+      const response = await apiClient.get('/posts');
+
+      if(response.status === 200 && response.data)
+      {
+          setPosts(response.data);
       }
-    };
-    loadPosts();
+    } catch (error: any) {
+      console.error('Lỗi khi tải Post:', error.response?.data || error.message);
+    }
+  };
+  
+  useEffect(() => {
+    fetchPosts();
   }, []);
 
   const loadComments = async () => {
@@ -62,27 +60,30 @@ const HomeScreen = () => {
       Alert.alert('Lỗi', 'Vui lòng nhập đủ tiêu đề và nội dung');
       return;
     }
-
-    const newPost: Post = {
-      id: Date.now().toString(), 
-      author: currentUser ? currentUser.name : 'Người dùng ẩn danh', 
+    const payload = {
       title: newTitle,
       description: newDescription,
-      date: new Date().toISOString().split('T')[0], 
+      creator_email: currentUser?.email || 'tester@gmail.com'
     };
-
-    const updatedPosts = [newPost, ...posts];
-    setPosts(updatedPosts); 
     try {
-      await AsyncStorage.setItem('saved_posts', JSON.stringify(updatedPosts));
-    } catch (error) {
-      console.log('Lỗi lưu bài viết:', error);
+      const response = await apiClient.post('/posts', payload);
+
+      if(response.status === 200 || response.status === 201) {
+        setNewTitle('');
+        setNewDescription('');
+
+        fetchPosts();
+      }else {
+        Alert.alert('Lỗi', 'Không thể tạo bài Post');
+      }
+    } catch (error: any) {
+      console.error('Lỗi khi tạo bài Post', JSON.stringify(error.response?.data || error.message, null, 2));
+      Alert.alert('Lỗi hệ thống','Có lỗi xảy ra khi gửi bài Post lên Server');
     }
-    setNewTitle('');
-    setNewDescription('');
+    
   };
 
-  const sortedPosts = [...posts].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  const sortedPosts = [...posts].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
   const handleAddComment = async (postId: string) => {
     if (!currentUser) {
@@ -113,12 +114,14 @@ const HomeScreen = () => {
     const postComments = comments.filter(c => c.postId === item.id);
     const isCommentOpen = activeCommentPost === item.id;
 
+    const formattedDate = new Date(item.created_at).toLocaleDateString('vi-VN');
+
     return (
       <View style={styles.postCard}>
         <Text style={styles.postTitle}>{item.title}</Text>
         <View style={styles.postMeta}>
-          <Text style={styles.authorText}>👤 {item.author}</Text>
-          <Text style={styles.dateText}>📅 {item.date}</Text>
+          <Text style={styles.authorText}>👤 {item.creator_name}</Text>
+          <Text style={styles.dateText}>📅 {formattedDate}</Text>
         </View>
         <Text style={styles.postDescription}>{item.description}</Text>
 
